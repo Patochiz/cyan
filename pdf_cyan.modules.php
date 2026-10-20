@@ -1863,6 +1863,47 @@ class pdf_cyan extends ModelePDFPropales
 		return ($tab_hl * 7);
 	}
 
+	/**
+	 * Get extrafield content for PDF output.
+	 * Multi-value extrafields (checkbox, list from table...) are rendered by Dolibarr as an HTML
+	 * bullet list with labels truncated to 18 chars. In the PDF this takes a lot of vertical space
+	 * and cuts the values. Here they are rendered on one line, comma separated, without truncation.
+	 *
+	 * @param	CommonObject	$object			Object (proposal or line)
+	 * @param	string			$extrafieldKey	Extrafield key
+	 * @param	Translate		$outputlangs	Output language
+	 * @return	string							Content to print
+	 */
+	public function getExtrafieldContent($object, $extrafieldKey, $outputlangs = null)
+	{
+		global $conf;
+
+		// Disable label truncation while building the output
+		$oldtrunc = isset($conf->global->MAIN_DISABLE_TRUNC) ? $conf->global->MAIN_DISABLE_TRUNC : null;
+		$conf->global->MAIN_DISABLE_TRUNC = 1;
+		$content = parent::getExtrafieldContent($object, $extrafieldKey, $outputlangs);
+		if ($oldtrunc === null) {
+			unset($conf->global->MAIN_DISABLE_TRUNC);
+		} else {
+			$conf->global->MAIN_DISABLE_TRUNC = $oldtrunc;
+		}
+
+		// Convert HTML bullet list into a single comma separated line
+		if (is_string($content) && stripos($content, '<li') !== false) {
+			$items = array();
+			if (preg_match_all('/<li[^>]*>(.*?)<\/li>/is', $content, $matches)) {
+				foreach ($matches[1] as $item) {
+					$item = trim(preg_replace('/\s+/', ' ', strip_tags($item)));
+					if ($item !== '') {
+						$items[] = $item;
+					}
+				}
+			}
+			$content = implode(', ', $items);
+		}
+
+		return $content;
+	}
 
 	/**
 	 *   	Define Array Column Field
