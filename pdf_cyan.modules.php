@@ -672,6 +672,13 @@ class pdf_cyan extends ModelePDFPropales
 					// Enough for 6 chars
 					if ($this->getColumnStatus('qty')) {
 						$qty = pdf_getlineqty($object, $i, $outputlangs, $hidedetails);
+						// Quantity and unit are shown together in the same column (ex: "100 m²")
+						if (getDolGlobalInt('PRODUCT_USE_UNITS')) {
+							$unit = pdf_getlineunit($object, $i, $outputlangs, $hidedetails);
+							if (!empty($unit) && $qty !== '') {
+								$qty .= ' '.$unit;
+							}
+						}
 						$this->printStdColumnContent($pdf, $curY, 'qty', $qty);
 						$nexY = max($pdf->GetY(), $nexY);
 					}
@@ -1975,6 +1982,17 @@ class pdf_cyan extends ModelePDFPropales
 		}
 
 		$rank = $rank + 10;
+		$this->cols['qty'] = array(
+			'rank' => $rank,
+			'width' => 20, // in mm (quantity + unit, ex: "100 m²")
+			'status' => true,
+			'title' => array(
+				'textkey' => 'Qty'
+			),
+			'border-left' => true, // add left line separator
+		);
+
+		$rank = $rank + 10;
 		$this->cols['subprice'] = array(
 			'rank' => $rank,
 			'width' => 19, // in mm
@@ -1997,17 +2015,6 @@ class pdf_cyan extends ModelePDFPropales
 		}
 
 		$rank = $rank + 10;
-		$this->cols['qty'] = array(
-			'rank' => $rank,
-			'width' => 16, // in mm
-			'status' => true,
-			'title' => array(
-				'textkey' => 'Qty'
-			),
-			'border-left' => true, // add left line separator
-		);
-
-		$rank = $rank + 10;
 		$this->cols['unit'] = array(
 			'rank' => $rank,
 			'width' => 11, // in mm
@@ -2017,9 +2024,7 @@ class pdf_cyan extends ModelePDFPropales
 			),
 			'border-left' => true, // add left line separator
 		);
-		if (getDolGlobalInt('PRODUCT_USE_UNITS')) {
-			$this->cols['unit']['status'] = true;
-		}
+		// Unit is merged into the qty column, so this column stays hidden
 
 		$rank = $rank + 10;
 		$this->cols['discount'] = array(
@@ -2038,7 +2043,7 @@ class pdf_cyan extends ModelePDFPropales
 		$rank = $rank + 1000; // add a big offset to be sure is the last col because default extrafield rank is 100
 		$this->cols['totalexcltax'] = array(
 			'rank' => $rank,
-			'width' => 26, // in mm
+			'width' => 22, // in mm
 			'status' => !getDolGlobalString('PDF_PROPAL_HIDE_PRICE_EXCL_TAX') ? true : false,
 			'title' => array(
 				'textkey' => 'TotalHTShort'
