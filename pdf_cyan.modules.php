@@ -2126,5 +2126,10 @@ class pdf_cyan extends ModelePDFPropales
 		} else {
 			$this->cols = $hookmanager->resArray;
 		}
+
+		// No inner vertical borders: only horizontal lines and the outer frame are kept
+		foreach ($this->cols as $colKey => $colDef) {
+			$this->cols[$colKey]['border-left'] = false;
+		}
 	}
 }
