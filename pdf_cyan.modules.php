@@ -1492,6 +1492,12 @@ class pdf_cyan extends ModelePDFPropales
 			$pdf->SetXY($this->page_largeur - $this->marge_droite - ($pdf->GetStringWidth($titre) + 3), $tab_top - 4);
 			$pdf->MultiCell(($pdf->GetStringWidth($titre) + 3), 2, $titre);
 
+			// Mention sur la même ligne, alignée sur le bord gauche du tableau
+			$mention = "Toute modification de quantité entrainera un nouveau chiffrage";
+			$largeurMention = $this->page_largeur - $this->marge_gauche - $this->marge_droite - ($pdf->GetStringWidth($titre) + 3);
+			$pdf->SetXY($this->marge_gauche, $tab_top - 4);
+			$pdf->MultiCell($largeurMention, 2, $outputlangs->convToOutputCharset($mention), 0, 'L');
+
 			//$conf->global->MAIN_PDF_TITLE_BACKGROUND_COLOR='230,230,230';
 			if (getDolGlobalString('MAIN_PDF_TITLE_BACKGROUND_COLOR')) {
 				$pdf->Rect($this->marge_gauche, $tab_top, $this->page_largeur - $this->marge_droite - $this->marge_gauche, $this->tabTitleHeight, 'F', null, explode(',', getDolGlobalString('MAIN_PDF_TITLE_BACKGROUND_COLOR')));
