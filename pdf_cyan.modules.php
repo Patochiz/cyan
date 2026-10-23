@@ -546,11 +546,20 @@ class pdf_cyan extends ModelePDFPropales
 
 				$nexY = $tab_top + $this->tabTitleHeight;
 
+				// Initialize subtotal tracking if enabled
+				$showSubtotals = !empty($object->array_options['options_sous_total']);
+				$currentSubtotal = 0;
+				$hasCurrentSection = false;
+				$firstTitleEncountered = false;
+
 				// Loop on each lines
 				$pageposbeforeprintlines = $pdf->getPage();
 				$pagenb = $pageposbeforeprintlines;
 				for ($i = 0; $i < $nblines; $i++) {
 					$curY = $nexY;
+
+					// Check if this is the special "Libelle_Cde" service (ID 361) used as title
+					$isTitleService = (isset($object->lines[$i]->fk_product) && $object->lines[$i]->fk_product == 361);
 					$pdf->SetFont('', '', $default_font_size - 1); // Into loop to work with multipage
 					$pdf->SetTextColor(0, 0, 0);
 
@@ -568,7 +577,7 @@ class pdf_cyan extends ModelePDFPropales
 					$posYAfterImage = 0;
 					$posYAfterDescription = 0;
 
-					if ($this->getColumnStatus('position')) {
+					if ($this->getColumnStatus('position') && !$isTitleService) {
 						$this->printStdColumnContent($pdf, $curY, 'position', $i + 1);
 					}
 
@@ -599,8 +608,39 @@ class pdf_cyan extends ModelePDFPropales
 						}
 					}
 
-					// Description of product line
-					if ($this->getColumnStatus('desc')) {
+					// Special handling for title service: display description on full width
+					if ($this->getColumnStatus('desc') && $isTitleService) {
+						// Handle subtotal display before the new title (except the first one)
+						if ($showSubtotals && $firstTitleEncountered && $hasCurrentSection) {
+							// Display subtotal as a simple single line (label + amount concatenated)
+							$pdf->SetFont('', 'B', $default_font_size - 1);
+							$pdf->SetFillColor(240, 240, 240);
+
+							$subtotalText = $outputlangs->trans('Subtotal').'  '.price($currentSubtotal, 0, $outputlangs);
+							$fullWidth = $this->page_largeur - $this->marge_gauche - $this->marge_droite;
+
+							$pdf->SetXY($this->marge_gauche, $curY);
+							$pdf->Cell($fullWidth, 4, $subtotalText, 0, 1, 'R', 1);
+							$curY = $pdf->GetY() + 1;
+							$nexY = $curY;
+
+							// Reset for next section
+							$currentSubtotal = 0;
+							$hasCurrentSection = false;
+						}
+
+						$firstTitleEncountered = true;
+						$pdf->SetFont('', 'B', $default_font_size);
+						$pdf->SetFillColor(230, 230, 230);
+						$pdf->SetTextColor(0, 0, 60);
+						$fullWidth = $this->page_largeur - $this->marge_gauche - $this->marge_droite;
+
+						// Use dol_htmlentitiesbr to properly handle HTML entities and line breaks
+						$pdf->writeHTMLCell($fullWidth, 0, $this->marge_gauche, $curY, dol_htmlentitiesbr($object->lines[$i]->desc), 0, 1, true, true, 'L', true);
+						$curY = $pdf->GetY();
+						$pdf->SetTextColor(0, 0, 0);
+					} elseif ($this->getColumnStatus('desc')) {
+						// Description of product line
 						$pdf->startTransaction();
 
 						$this->printColDescContent($pdf, $curY, 'desc', $object, $i, $outputlangs, $hideref, $hidedesc);
@@ -661,8 +701,8 @@ class pdf_cyan extends ModelePDFPropales
 						$nexY = max($pdf->GetY(), $nexY);
 					}
 
-					// Unit price before discount
-					if ($this->getColumnStatus('subprice')) {
+					// Unit price before discount (hidden for title service)
+					if ($this->getColumnStatus('subprice') && !$isTitleService) {
 						$up_excl_tax = pdf_getlineupexcltax($object, $i, $outputlangs, $hidedetails);
 						$this->printStdColumnContent($pdf, $curY, 'subprice', $up_excl_tax);
 						$nexY = max($pdf->GetY(), $nexY);
@@ -670,7 +710,7 @@ class pdf_cyan extends ModelePDFPropales
 
 					// Quantity
 					// Enough for 6 chars
-					if ($this->getColumnStatus('qty')) {
+					if ($this->getColumnStatus('qty') && !$isTitleService) {
 						$qty = pdf_getlineqty($object, $i, $outputlangs, $hidedetails);
 						// Quantity and unit are shown together in the same column (ex: "100 m²")
 						if (getDolGlobalInt('PRODUCT_USE_UNITS')) {
@@ -698,11 +738,17 @@ class pdf_cyan extends ModelePDFPropales
 						$nexY = max($pdf->GetY(), $nexY);
 					}
 
-					// Total excl tax line (HT)
-					if ($this->getColumnStatus('totalexcltax')) {
+					// Total excl tax line (HT) (hidden for title service)
+					if ($this->getColumnStatus('totalexcltax') && !$isTitleService) {
 						$total_excl_tax = pdf_getlinetotalexcltax($object, $i, $outputlangs, $hidedetails);
 						$this->printStdColumnContent($pdf, $curY, 'totalexcltax', $total_excl_tax);
 						$nexY = max($pdf->GetY(), $nexY);
+
+						// Accumulate for subtotal if enabled
+						if ($showSubtotals) {
+							$currentSubtotal += $object->lines[$i]->total_ht;
+							$hasCurrentSection = true;
+						}
 					}
 
 					// Total with tax line (TTC)
@@ -853,6 +899,20 @@ class pdf_cyan extends ModelePDFPropales
 							$this->_pagehead($pdf, $object, 0, $outputlangs);
 						}
 					}
+				}
+
+				// Display final subtotal if enabled and there's a current section
+				if ($showSubtotals && $hasCurrentSection) {
+					$pdf->SetFont('', 'B', $default_font_size - 1);
+					$pdf->SetFillColor(240, 240, 240);
+
+					$subtotalText = $outputlangs->trans('Subtotal').'  '.price($currentSubtotal, 0, $outputlangs);
+					$fullWidth = $this->page_largeur - $this->marge_gauche - $this->marge_droite;
+
+					$pdf->SetXY($this->marge_gauche, $nexY);
+					$pdf->Cell($fullWidth, 4, $subtotalText, 0, 1, 'R', 1);
+
+					$nexY = $pdf->GetY() + 1;
 				}
 
 				// Show square
